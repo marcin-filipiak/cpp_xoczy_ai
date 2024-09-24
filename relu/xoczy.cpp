@@ -6,105 +6,114 @@
 #include <cstdlib>
 
 // Funkcja do odczytu obrazu z pliku tekstowego i normalizacji
+// Odczytuje obraz z pliku, gdzie wartości 0 lub 1 są przetwarzane
+// i zapisywane w wektorze, reprezentującym piksele obrazu.
 std::vector<double> readImage(const std::string& filename) {
-    std::ifstream file(filename);
-    std::vector<double> image;
+    std::ifstream file(filename);  // Otwiera plik
+    std::vector<double> image;     // Wektor do przechowywania wartości pikseli
     if (file.is_open()) {
         std::string line;
+        // Odczyt kolejnych linii pliku
         while (std::getline(file, line)) {
+            // Przetwarza każdy znak w linii
             for (char pixel : line) {
+                // Sprawdza, czy piksel to 0 lub 1 i konwertuje go do typu double
                 if (pixel == '0' || pixel == '1') {
-                    image.push_back((double)(pixel - '0'));  // Normalizacja: 0 lub 1 zamieniamy na 0.0 lub 1.0
+                    image.push_back((double)(pixel - '0'));  // Zamienia '0' na 0.0 i '1' na 1.0
                 }
             }
         }
-        file.close();
+        file.close();  // Zamknięcie pliku
     }
-    return image; // Zwraca wektor 100 elementów (10x10).
+    return image;  // Zwraca wektor pikseli, reprezentujący obraz
 }
 
-// Prosta sieć neuronowa z ReLU
+// Prosta sieć neuronowa z warstwą ukrytą i aktywacją ReLU
 class SimpleNN {
 public:
+    // Konstruktor sieci inicjalizuje wagi i rozmiary warstw
     SimpleNN(int input_size, int hidden_size, int output_size) {
-        input_hidden_weights.resize(input_size * hidden_size);
-        hidden_output_weights.resize(hidden_size * output_size);
-        hidden_layer.resize(hidden_size);
-        output_layer.resize(output_size);
+        // Inicjalizacja wektorów wag między warstwami
+        input_hidden_weights.resize(input_size * hidden_size); // Wagi między wejściem a warstwą ukrytą
+        hidden_output_weights.resize(hidden_size * output_size); // Wagi między warstwą ukrytą a wyjściem
+        hidden_layer.resize(hidden_size);  // Wektor reprezentujący warstwę ukrytą
+        output_layer.resize(output_size);  // Wektor reprezentujący wyjście
 
-        // Inicjalizacja wag losowymi wartościami
+        // Inicjalizacja wag losowymi wartościami w zakresie [-1, 1]
         for (double& weight : input_hidden_weights) {
-            weight = ((double) rand() / RAND_MAX) * 2 - 1; // Wagi losowe w zakresie [-1, 1]
+            weight = ((double) rand() / RAND_MAX) * 2 - 1;
         }
         for (double& weight : hidden_output_weights) {
-            weight = ((double) rand() / RAND_MAX) * 2 - 1; // Wagi losowe w zakresie [-1, 1]
+            weight = ((double) rand() / RAND_MAX) * 2 - 1;
         }
     }
 
-    // Funkcja forward propagation z ReLU
+    // Funkcja do propagacji w przód (forward propagation) z funkcją aktywacji ReLU
     std::vector<double> forward(const std::vector<double>& inputs) {
+        // Obliczanie wartości neuronów w warstwie ukrytej
         for (int i = 0; i < hidden_layer.size(); ++i) {
             hidden_layer[i] = 0;
             for (int j = 0; j < inputs.size(); ++j) {
+                // Oblicza sumę ważoną wejść i wag dla każdego neuronu ukrytego
                 hidden_layer[i] += inputs[j] * input_hidden_weights[i * inputs.size() + j];
             }
-            hidden_layer[i] = relu(hidden_layer[i]);  // Funkcja aktywacji ReLU
+            hidden_layer[i] = relu(hidden_layer[i]);  // Zastosowanie funkcji aktywacji ReLU
         }
 
+        // Obliczanie wartości neuronów na wyjściu
         for (int i = 0; i < output_layer.size(); ++i) {
             output_layer[i] = 0;
             for (int j = 0; j < hidden_layer.size(); ++j) {
+                // Oblicza sumę ważoną neuronów ukrytych i wag dla neuronów wyjściowych
                 output_layer[i] += hidden_layer[j] * hidden_output_weights[i * hidden_layer.size() + j];
             }
-            output_layer[i] = sigmoid(output_layer[i]);  // Funkcja aktywacji sigmoid na wyjściu
+            output_layer[i] = sigmoid(output_layer[i]);  // Zastosowanie funkcji aktywacji sigmoid
         }
 
-        return output_layer;
+        return output_layer;  // Zwraca wartości wyjściowe
     }
 
-    // Funkcja uczenia sieci (backpropagation)
+    // Funkcja do uczenia sieci metodą backpropagation
     void train(const std::vector<double>& inputs, const std::vector<double>& expected_output, double learning_rate) {
+        // Propagacja w przód
         forward(inputs);
 
+        // Obliczenie błędu na wyjściu (różnica między oczekiwanym a rzeczywistym wynikiem)
         std::vector<double> output_error(output_layer.size());
         for (int i = 0; i < output_layer.size(); ++i) {
             output_error[i] = expected_output[i] - output_layer[i];
         }
 
+        // Obliczenie błędu dla warstwy ukrytej (propagacja błędu wstecz)
         std::vector<double> hidden_error(hidden_layer.size());
         for (int i = 0; i < hidden_layer.size(); ++i) {
             hidden_error[i] = 0;
             for (int j = 0; j < output_layer.size(); ++j) {
                 hidden_error[i] += output_error[j] * hidden_output_weights[j * hidden_layer.size() + i];
             }
-            hidden_error[i] *= relu_derivative(hidden_layer[i]);
+            hidden_error[i] *= relu_derivative(hidden_layer[i]);  // Zastosowanie pochodnej funkcji ReLU
         }
 
-        // Aktualizacja wag między warstwą ukrytą a wyjściową
+        // Aktualizacja wag między warstwą ukrytą a wyjściem na podstawie błędu
         for (int i = 0; i < hidden_output_weights.size(); ++i) {
             hidden_output_weights[i] += learning_rate * output_error[i % output_layer.size()] * hidden_layer[i / output_layer.size()];
         }
 
-        // Aktualizacja wag między wejściem a warstwą ukrytą
+        // Aktualizacja wag między wejściem a warstwą ukrytą na podstawie błędu
         for (int i = 0; i < input_hidden_weights.size(); ++i) {
             input_hidden_weights[i] += learning_rate * hidden_error[i % hidden_layer.size()] * inputs[i / hidden_layer.size()];
         }
     }
 
 private:
-    std::vector<double> input_hidden_weights;
-    std::vector<double> hidden_output_weights;
-    std::vector<double> hidden_layer;
-    std::vector<double> output_layer;
+    std::vector<double> input_hidden_weights;  // Wagi między wejściem a warstwą ukrytą
+    std::vector<double> hidden_output_weights; // Wagi między warstwą ukrytą a wyjściem
+    std::vector<double> hidden_layer;          // Neurony warstwy ukrytej
+    std::vector<double> output_layer;          // Neurony warstwy wyjściowej
 
     // Funkcja aktywacji sigmoid
     double sigmoid(double x) {
         return 1.0 / (1.0 + std::exp(-x));
-    }
-
-    // Pochodna funkcji sigmoid
-    double sigmoid_derivative(double x) {
-        return x * (1.0 - x);
     }
 
     // Funkcja aktywacji ReLU
@@ -112,35 +121,35 @@ private:
         return x > 0 ? x : 0;
     }
 
-    // Pochodna funkcji ReLU
+    // Pochodna funkcji ReLU (używana w backpropagation)
     double relu_derivative(double x) {
         return x > 0 ? 1 : 0;
     }
 };
 
 int main() {
-    // Inicjalizacja sieci neuronowej
-    SimpleNN nn(100, 30, 1); // Większa liczba neuronów ukrytych: 30
+    // Inicjalizacja sieci neuronowej z 100 wejściami, 30 neuronami ukrytymi i 1 wyjściem
+    SimpleNN nn(100, 30, 1);  // 100 pikseli obrazu wejściowego (10x10), 30 neuronów w warstwie ukrytej
 
-    // Obrazy treningowe i oczekiwane wyniki
+    // Pliki z danymi treningowymi (obrazy) i oczekiwane wyniki
     std::vector<std::string> training_files = {"training1.txt", "training2.txt", "training3.txt"};
-    std::vector<int> expected_outputs = {1, 0, 0}; // obraz1 (X) -> 1, obraz2 (prostokąt) -> 0, obraz3 (O) -> 0
+    std::vector<int> expected_outputs = {1, 0, 0};  // Oczekiwane wyniki: 1 dla "X", 0 dla innych kształtów
 
-    // Trenowanie na obrazach
-    for (int epoch = 0; epoch < 20000; ++epoch) {  // Zwiększona liczba epok do 20 000
+    // Trenowanie sieci neuronowej przez 20 000 epok
+    for (int epoch = 0; epoch < 20000; ++epoch) {
         for (int i = 0; i < training_files.size(); ++i) {
-            std::vector<double> image = readImage(training_files[i]);
-            std::vector<double> expected_output = {static_cast<double>(expected_outputs[i])}; // Jedno wyjście per obraz
-            nn.train(image, expected_output, 0.01); // Trenuj na każdym obrazie
+            std::vector<double> image = readImage(training_files[i]);  // Wczytuje obraz z pliku
+            std::vector<double> expected_output = {static_cast<double>(expected_outputs[i])};  // Oczekiwany wynik
+            nn.train(image, expected_output, 0.01);  // Uczy sieć dla każdego obrazu
         }
     }
 
-    // Testowanie na obrazie "obraz.txt"
-    std::vector<double> test_image = readImage("detection.txt");
-    std::vector<double> result = nn.forward(test_image);
+    // Testowanie sieci na nowym obrazie
+    std::vector<double> test_image = readImage("detection.txt");  // Wczytuje obraz testowy
+    std::vector<double> result = nn.forward(test_image);  // Przepuszcza obraz przez sieć
 
     // Wyświetlenie wyniku
-    std::cout << "Wynik: " << result[0] << std::endl; // Powinno być blisko 1, jeśli obraz przedstawia kształt "X"
+    std::cout << "Wynik: " << result[0] << std::endl;  // Wyświetla wynik. Jeśli obraz to "X", wynik powinien być bliski 1.
 
     return 0;
 }
